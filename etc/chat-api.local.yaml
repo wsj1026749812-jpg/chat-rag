@@ -1,0 +1,60 @@
+Name: chat-rag
+Host: 0.0.0.0
+Port: 8888
+
+Log:
+  LogFilePath: "logs/"
+  storageType: "disk"
+  saveErrorLog: false
+
+DepartmentApiEndpoint: "http://localhost:1234/work_id?work_id="
+
+LLM:
+  Endpoint: "http://127.0.0.1:30616/chat-rag/api/v1/chat/completions"
+
+LLMTimeout:
+  idleTimeoutMs: 180000
+  totalIdleTimeoutMs: 180000
+  maxRetryCount: 1
+  retryIntervalMs: 5000
+
+Redis:
+  Addr: "127.0.0.1:6379"
+
+Tools:
+  DisableTools: true
+  GenericTools: []
+
+Rules:
+  agents: []
+
+PreciseContextConfig:
+  AgentsMatch: []
+  EnableEnvDetailsFilter: false
+
+Router:
+  enabled: false
+  strategy: semantic
+
+VoucherActivityConfig:
+  enabled: false
+  signingKey: "local-development-signing-key"
+  activities: []
+
+VIPPriority:
+  enabled: false
+
+forward:
+  enabled: true
+
+nacos:
+  enabled: false
+
+chatMetrics:
+  enabled: false
+  url: "http://127.0.0.1:8080/internal/indicator/api/v1/chat-indicator"
+  method: "PUT"
+
+requestVerify:
+  enabled: false
+  enabledTimeVerify: false
