@@ -47,6 +47,19 @@ type RedisConfig struct {
 	DB       int
 }
 
+// NewTokenAuthConfig holds configuration for exchanging user email for gateway token.
+type NewTokenAuthConfig struct {
+	Enabled         bool   `mapstructure:"enabled" yaml:"enabled"`
+	Endpoint        string `mapstructure:"endpoint" yaml:"endpoint"`
+	OpenToken       string `mapstructure:"openToken" yaml:"openToken"`
+	HeaderName      string `mapstructure:"headerName" yaml:"headerName"`
+	FixedEmail      string `mapstructure:"fixedEmail" yaml:"fixedEmail"`
+	CacheKey        string `mapstructure:"cacheKey" yaml:"cacheKey"`
+	CacheTTLSeconds int    `mapstructure:"cacheTTLSeconds" yaml:"cacheTTLSeconds"`
+	TimeoutMs       int    `mapstructure:"timeoutMs" yaml:"timeoutMs"`
+	AuthScheme      string `mapstructure:"authScheme" yaml:"authScheme"`
+}
+
 type ToolConfig struct {
 	// Global switch to control whether all tools are disabled, default is false
 	DisableTools bool
@@ -179,6 +192,9 @@ type Config struct {
 
 	// Redis configuration
 	Redis RedisConfig
+
+	// New token auth configuration
+	NewTokenAuth NewTokenAuthConfig `mapstructure:"newTokenAuth" yaml:"newTokenAuth"`
 
 	LLM LLMConfig
 

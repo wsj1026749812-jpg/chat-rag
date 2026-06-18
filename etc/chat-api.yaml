@@ -88,6 +88,17 @@ router:
 Redis:
   Addr: "127.0.0.1:6379"
 
+newTokenAuth:
+  enabled: true
+  endpoint: "http://10.111.175.240:3002/api/opentoken/key/condition"
+  headerName: "NEW-OPEN-TOKEN"
+  openToken: "RBgAtwG5qJsnAmWg/IFA/vkSu8x+"
+  fixedEmail: "chen.xiujian@byd.com"
+  cacheKey: "chat_rag:new_token_auth"
+  cacheTTLSeconds: 3600
+  timeoutMs: 3000
+  authScheme: "Bearer"
+
 # VIP priority configuration
 VIPPriority:
   # Enable setting priority parameter for VIP users

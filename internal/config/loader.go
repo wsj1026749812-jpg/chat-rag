@@ -118,9 +118,32 @@ func MustLoadConfig(configPath string) Config {
 
 	// Apply timeout and retry defaults for routing (model degradation scenarios)
 	ApplyRouterDefaults(c)
+	ApplyNewTokenAuthDefaults(c)
 
 	logger.Info("loaded config", zap.Any("config", c))
 	return *c
+}
+
+// ApplyNewTokenAuthDefaults applies defaults for email-to-token exchange.
+func ApplyNewTokenAuthDefaults(c *Config) {
+	if c == nil || !c.NewTokenAuth.Enabled {
+		return
+	}
+	if c.NewTokenAuth.HeaderName == "" {
+		c.NewTokenAuth.HeaderName = "NEW-OPEN-TOKEN"
+	}
+	if c.NewTokenAuth.CacheKey == "" {
+		c.NewTokenAuth.CacheKey = "chat_rag:new_token_auth"
+	}
+	if c.NewTokenAuth.CacheTTLSeconds <= 0 {
+		c.NewTokenAuth.CacheTTLSeconds = 3600
+	}
+	if c.NewTokenAuth.TimeoutMs <= 0 {
+		c.NewTokenAuth.TimeoutMs = 3000
+	}
+	if c.NewTokenAuth.AuthScheme == "" {
+		c.NewTokenAuth.AuthScheme = "Bearer"
+	}
 }
 
 // ApplyRouterDefaults applies default values to router configuration

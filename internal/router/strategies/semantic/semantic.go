@@ -18,6 +18,7 @@ import (
 	"github.com/zgsm-ai/chat-rag/internal/client"
 	"github.com/zgsm-ai/chat-rag/internal/config"
 	"github.com/zgsm-ai/chat-rag/internal/logger"
+	"github.com/zgsm-ai/chat-rag/internal/model"
 	"github.com/zgsm-ai/chat-rag/internal/types"
 	"github.com/zgsm-ai/chat-rag/internal/utils"
 	"go.uber.org/zap"
@@ -98,6 +99,19 @@ func (s *Strategy) Run(
 		cloned.Set("Authorization", token)
 		cloned.Set(types.HeaderAuthorization, token)
 		analyzerHeaders = &cloned
+	}
+	email := ""
+	if identity, ok := model.GetIdentityFromContext(ctx); ok && identity != nil && identity.UserInfo != nil {
+		email = identity.UserInfo.Email
+	}
+	analyzerHeaders, err := svcCtx.PrepareGatewayHeaders(ctx, analyzerHeaders, email)
+	if err != nil {
+		logger.WarnC(ctx, "semantic router: fallback used",
+			zap.String("reason", "prepare_gateway_headers_error"),
+			zap.Error(err),
+			zap.String("selected_model", s.selectFallback(req)),
+		)
+		return s.selectFallback(req), current, s.orderCandidatesByLabel("", req.Model, cands), nil
 	}
 
 	// Use default timeout config for analyzer

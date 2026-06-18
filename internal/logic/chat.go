@@ -68,6 +68,14 @@ func NewChatCompletionLogic(
 	}
 }
 
+func (l *ChatCompletionLogic) prepareLLMHeaders() (*http.Header, error) {
+	email := ""
+	if l.identity != nil && l.identity.UserInfo != nil {
+		email = l.identity.UserInfo.Email
+	}
+	return l.svcCtx.PrepareGatewayHeaders(l.ctx, l.headers, email)
+}
+
 const (
 	MaxToolCallDepth    = 6
 	MaxToolResultLength = 100_000
@@ -351,7 +359,13 @@ func (l *ChatCompletionLogic) ChatCompletionStream() error {
 		// No degradation list → single model streaming (non-auto path) with retry
 		maxRetryCount, retryInterval, _, _ := l.getRetryConfig()
 		var lastErr error
-		llmClient, err := client.NewLLMClient(l.svcCtx.Config.LLM, l.svcCtx.Config.LLMTimeout, l.request.Model, l.headers)
+		llmHeaders, err := l.prepareLLMHeaders()
+		if err != nil {
+			l.responseHandler.sendSSEError(l.ctx, l.writer, err)
+			chatLog.AddError(types.ErrServerError, err)
+			return fmt.Errorf("failed to prepare llm headers: %w", err)
+		}
+		llmClient, err := client.NewLLMClient(l.svcCtx.Config.LLM, l.svcCtx.Config.LLMTimeout, l.request.Model, llmHeaders)
 		if err != nil {
 			l.responseHandler.sendSSEError(l.ctx, l.writer, err)
 			chatLog.AddError(types.ErrServerError, err)
@@ -423,7 +437,14 @@ func (l *ChatCompletionLogic) ChatCompletionStream() error {
 			l.writer.Header().Set(types.HeaderSelectLLm, modelName)
 		}
 
-		llmClient, err := client.NewLLMClient(l.svcCtx.Config.LLM, l.svcCtx.Config.LLMTimeout, modelName, l.headers)
+		llmHeaders, headerErr := l.prepareLLMHeaders()
+		if headerErr != nil {
+			lastErr = headerErr
+			logger.WarnC(l.ctx, "degradation(stream): failed to prepare llm headers",
+				zap.String("model", modelName), zap.Error(headerErr))
+			continue
+		}
+		llmClient, err := client.NewLLMClient(l.svcCtx.Config.LLM, l.svcCtx.Config.LLMTimeout, modelName, llmHeaders)
 		if err != nil {
 			lastErr = err
 			logger.WarnC(l.ctx, "degradation(stream): failed to create llm client",
@@ -1130,7 +1151,13 @@ func (l *ChatCompletionLogic) callModelWithRetry(modelName string, params types.
 		sharedTracker = timeout.NewIdleTracker(totalIdleTimeout)
 	}
 
-	llmClient, err := client.NewLLMClient(l.svcCtx.Config.LLM, l.svcCtx.Config.LLMTimeout, modelName, l.headers)
+	llmHeaders, err := l.prepareLLMHeaders()
+	if err != nil {
+		logger.WarnC(l.ctx, "single-model retry: failed to prepare llm headers",
+			zap.String("model", modelName), zap.Error(err))
+		return nilResp, err
+	}
+	llmClient, err := client.NewLLMClient(l.svcCtx.Config.LLM, l.svcCtx.Config.LLMTimeout, modelName, llmHeaders)
 	if err != nil {
 		logger.WarnC(l.ctx, "single-model retry: failed to create llm client",
 			zap.String("model", modelName), zap.Error(err))

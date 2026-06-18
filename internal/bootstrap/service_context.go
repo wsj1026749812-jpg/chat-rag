@@ -3,6 +3,7 @@ package bootstrap
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"sync"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/zgsm-ai/chat-rag/internal/service"
 	"github.com/zgsm-ai/chat-rag/internal/storage"
 	"github.com/zgsm-ai/chat-rag/internal/tokenizer"
+	"github.com/zgsm-ai/chat-rag/internal/types"
 	"go.uber.org/zap"
 )
 
@@ -28,9 +30,10 @@ type ServiceContext struct {
 	RedisClient client.RedisInterface
 
 	// Services
-	LoggerService  service.LogRecordInterface
-	MetricsService service.MetricsInterface
-	VoucherService *service.VoucherService
+	LoggerService       service.LogRecordInterface
+	MetricsService      service.MetricsInterface
+	VoucherService      *service.VoucherService
+	NewTokenAuthService *service.NewTokenAuthService
 
 	// Utilities
 	TokenCounter *tokenizer.TokenCounter
@@ -97,6 +100,7 @@ func (svc *ServiceContext) initialize() error {
 		svc.initializeStorage,
 		svc.initializeLoggerService,
 		svc.initializeRedisClient,
+		svc.initializeNewTokenAuthService,
 		svc.initializeNacosConfig,
 		svc.initializeVoucherService,
 		svc.initializeToolExecutor,
@@ -201,6 +205,18 @@ func (svc *ServiceContext) initializeRedisClient() error {
 	svc.RedisClient = client.NewRedisClient(svc.Config.Redis)
 	logger.Info("Redis client initialized successfully",
 		zap.String("addr", svc.Config.Redis.Addr))
+	return nil
+}
+
+func (svc *ServiceContext) initializeNewTokenAuthService() error {
+	config.ApplyNewTokenAuthDefaults(&svc.Config)
+	if !svc.Config.NewTokenAuth.Enabled {
+		return nil
+	}
+	svc.NewTokenAuthService = service.NewNewTokenAuthService(svc.Config.NewTokenAuth, svc.RedisClient)
+	logger.Info("New token auth service initialized",
+		zap.String("endpoint", svc.Config.NewTokenAuth.Endpoint),
+		zap.String("fixedEmail", svc.Config.NewTokenAuth.FixedEmail))
 	return nil
 }
 
@@ -471,6 +487,24 @@ func (svc *ServiceContext) GetConfig() config.Config {
 	svc.mu.RLock()
 	defer svc.mu.RUnlock()
 	return svc.Config
+}
+
+func (svc *ServiceContext) PrepareGatewayHeaders(ctx context.Context, headers *http.Header, email string) (*http.Header, error) {
+	if svc.NewTokenAuthService == nil || !svc.NewTokenAuthService.Enabled() {
+		return headers, nil
+	}
+
+	authorization, err := svc.NewTokenAuthService.Authorization(ctx, email)
+	if err != nil {
+		return nil, err
+	}
+
+	cloned := make(http.Header)
+	if headers != nil {
+		cloned = headers.Clone()
+	}
+	cloned.Set(types.HeaderAuthorization, authorization)
+	return &cloned, nil
 }
 
 // Update methods for Nacos configuration changes (with thread safety)
